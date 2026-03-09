@@ -1,0 +1,491 @@
+@baseUrl = http://localhost:5044
+
+### ============================================================
+### HEALTH CHECK
+### ============================================================
+
+### Health check basico
+GET {{baseUrl}}/health
+
+### ============================================================
+### 1. CREAR RESERVA - CASOS EXITOSOS (202 Accepted)
+### ============================================================
+
+### 1.1 Reserva basica valida - monto bajo, pais soportado
+### Esperado: 202, status=PendingRiskCheck, requiresPositiveRiskEvaluation=false
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "carlos@example.com",
+  "tripCountry": "MX",
+  "amount": 1500.00,
+  "currency": "USD",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 1.2 Reserva con monto alto (>= 5000) - ALTA EXPOSICION por monto
+### Esperado: 202, status=PendingRiskCheck, requiresPositiveRiskEvaluation=true
+### Si el proveedor de riesgo falla, sera REJECTED (no puede aprobarse sin evaluacion positiva)
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "maria@example.com",
+  "tripCountry": "US",
+  "amount": 7500.00,
+  "currency": "USD",
+  "tripStartDate": "2026-06-01T08:00:00Z"
+}
+
+### 1.3 Reserva exactamente en el limite de alta exposicion (amount == 5000)
+### Esperado: 202, status=PendingRiskCheck, requiresPositiveRiskEvaluation=true
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "limite@example.com",
+  "tripCountry": "ES",
+  "amount": 5000.00,
+  "currency": "EUR",
+  "tripStartDate": "2026-05-20T14:00:00Z"
+}
+
+### 1.4 Reserva justo debajo del limite de alta exposicion (amount == 4999.99)
+### Esperado: 202, status=PendingRiskCheck, requiresPositiveRiskEvaluation=false
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "limite@example.com",
+  "tripCountry": "ES",
+  "amount": 4999.99,
+  "currency": "EUR",
+  "tripStartDate": "2026-05-22T14:00:00Z"
+}
+
+### 1.5 Reserva con monto maximo permitido (20000)
+### Esperado: 202, status=PendingRiskCheck, requiresPositiveRiskEvaluation=true (amount >= 5000)
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "vip@example.com",
+  "tripCountry": "FR",
+  "amount": 20000.00,
+  "currency": "EUR",
+  "tripStartDate": "2026-07-01T10:00:00Z"
+}
+
+### 1.6 Reserva con distintas monedas soportadas
+### Esperado: 202
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "colombiano@example.com",
+  "tripCountry": "CO",
+  "amount": 800.00,
+  "currency": "COP",
+  "tripStartDate": "2026-05-25T09:00:00Z"
+}
+
+### 1.7 Reserva con fecha exactamente a 48 horas (limite)
+### Esperado: 202 (>= 48h esta OK)
+### NOTA: Ajustar la fecha a exactamente 48h+ desde el momento de ejecucion
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "timing@example.com",
+  "tripCountry": "MX",
+  "amount": 200.00,
+  "currency": "MXN",
+  "tripStartDate": "2026-03-12T12:00:00Z"
+}
+
+### ============================================================
+### 2. VALIDACION: MONTO (Regla 1)
+### ============================================================
+
+### 2.1 Monto = 0 (invalido, debe ser > 0)
+### Esperado: 400 Bad Request
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "MX",
+  "amount": 0,
+  "currency": "USD",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 2.2 Monto negativo
+### Esperado: 400 Bad Request
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "MX",
+  "amount": -100,
+  "currency": "USD",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 2.3 Monto supera el maximo (> 20000)
+### Esperado: 400 Bad Request
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "MX",
+  "amount": 20001,
+  "currency": "USD",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 2.4 Monto minimo valido (0.01)
+### Esperado: 202
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "minimo@example.com",
+  "tripCountry": "MX",
+  "amount": 0.01,
+  "currency": "USD",
+  "tripStartDate": "2026-06-15T10:00:00Z"
+}
+
+### ============================================================
+### 3. VALIDACION: FECHA DE VIAJE (Regla 2)
+### ============================================================
+
+### 3.1 Fecha en el pasado
+### Esperado: 400 Bad Request - "tripStartDate cannot be in the past."
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "MX",
+  "amount": 500,
+  "currency": "USD",
+  "tripStartDate": "2020-01-01T10:00:00Z"
+}
+
+### 3.2 Fecha dentro de las proximas 48 horas (muy cercana)
+### Esperado: 400 Bad Request - "tripStartDate must be at least 48 hours ahead."
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "MX",
+  "amount": 500,
+  "currency": "USD",
+  "tripStartDate": "2026-03-09T10:00:00Z"
+}
+
+### 3.3 Fecha exactamente ahora
+### Esperado: 400 Bad Request
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "MX",
+  "amount": 500,
+  "currency": "USD",
+  "tripStartDate": "2026-03-08T20:00:00Z"
+}
+
+### ============================================================
+### 4. VALIDACION: PAIS PERMITIDO (Regla 3)
+### ============================================================
+
+### 4.1 Pais no soportado - "ZZ"
+### Esperado: 202 pero status=Rejected, decision="Trip country is not supported."
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "ZZ",
+  "amount": 500,
+  "currency": "USD",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 4.2 Pais no soportado - "JP" (Japon no esta en la lista)
+### Esperado: 202 pero status=Rejected
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "JP",
+  "amount": 500,
+  "currency": "USD",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 4.3 Pais de alto riesgo que NO esta en soportados - "NG" (Nigeria)
+### Esperado: 202 pero status=Rejected (NG no esta en SupportedCountries)
+### NOTA: HighRiskCountries y SupportedCountries son listas separadas
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "NG",
+  "amount": 500,
+  "currency": "USD",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 4.4 Pais vacio
+### Esperado: 400 Bad Request - "tripCountry is required."
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "",
+  "amount": 500,
+  "currency": "USD",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### ============================================================
+### 5. VALIDACION: CAMPOS REQUERIDOS
+### ============================================================
+
+### 5.1 Email vacio
+### Esperado: 400 Bad Request - "customerEmail is required."
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "",
+  "tripCountry": "MX",
+  "amount": 500,
+  "currency": "USD",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 5.2 Currency vacia
+### Esperado: 400 Bad Request - "currency is required."
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "MX",
+  "amount": 500,
+  "currency": "",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 5.3 Currency no soportada
+### Esperado: 400 Bad Request - "currency is not supported."
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "test@example.com",
+  "tripCountry": "MX",
+  "amount": 500,
+  "currency": "GBP",
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### ============================================================
+### 6. VALIDACION: LIMITE DE RESERVAS ACTIVAS (Regla 4)
+### Ejecutar las 4 siguientes en secuencia con el MISMO email
+### ============================================================
+
+### 6.1 Primera reserva pendiente para limit-test (1/3)
+### Esperado: 202, status=PendingRiskCheck
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "limit-test@example.com",
+  "tripCountry": "MX",
+  "amount": 100,
+  "currency": "USD",
+  "tripStartDate": "2026-06-01T10:00:00Z"
+}
+
+### 6.2 Segunda reserva pendiente para limit-test (2/3)
+### Esperado: 202, status=PendingRiskCheck
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "limit-test@example.com",
+  "tripCountry": "US",
+  "amount": 200,
+  "currency": "USD",
+  "tripStartDate": "2026-06-02T10:00:00Z"
+}
+
+### 6.3 Tercera reserva pendiente para limit-test (3/3)
+### Esperado: 202, status=PendingRiskCheck
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "limit-test@example.com",
+  "tripCountry": "CA",
+  "amount": 300,
+  "currency": "USD",
+  "tripStartDate": "2026-06-03T10:00:00Z"
+}
+
+### 6.4 Cuarta reserva - EXCEDE LIMITE (4ta en 24h)
+### Esperado: 202 pero status=Rejected, decision="Customer exceeded pending reservations limit in 24 hours."
+### NOTA: Ejecutar rapido tras las 3 anteriores, antes de que el worker las procese
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "limit-test@example.com",
+  "tripCountry": "ES",
+  "amount": 400,
+  "currency": "EUR",
+  "tripStartDate": "2026-06-04T10:00:00Z"
+}
+
+### ============================================================
+### 7. EXPOSICION DE RIESGO ELEVADA (Regla 5)
+### ============================================================
+
+### 7.1 Alta exposicion por MONTO (>= 5000)
+### Esperado: 202, PendingRiskCheck. Si el proveedor falla -> REJECTED
+### Verificar via GET que requiresPositiveRiskEvaluation=true (en decisions)
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "highamount@example.com",
+  "tripCountry": "DE",
+  "amount": 8000.00,
+  "currency": "EUR",
+  "tripStartDate": "2026-06-15T10:00:00Z"
+}
+
+### 7.2 Baja exposicion (< 5000, pais NO de alto riesgo)
+### Esperado: 202, PendingRiskCheck. Si el proveedor falla -> APPROVED (fallback policy)
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "lowamount@example.com",
+  "tripCountry": "MX",
+  "amount": 500.00,
+  "currency": "MXN",
+  "tripStartDate": "2026-06-15T10:00:00Z"
+}
+
+### ============================================================
+### 8. CONSULTAS
+### ============================================================
+
+### 8.1 Listar todas las reservas
+### Esperado: 200 OK con array de reservas ordenadas por fecha desc
+GET {{baseUrl}}/reservations
+
+### 8.2 Obtener reserva por ID (reemplazar con un ID real de las respuestas anteriores)
+### Esperado: 200 OK con detalle completo (risk info, decisions, timestamps)
+GET {{baseUrl}}/reservations/00000000-0000-0000-0000-000000000000
+
+### 8.3 Obtener reserva con ID inexistente
+### Esperado: 404 Not Found
+GET {{baseUrl}}/reservations/99999999-9999-9999-9999-999999999999
+
+### ============================================================
+### 9. TRAZABILIDAD - Consultar decisiones
+### Verificar que el campo "decisions" incluye timestamp, reason y resultingStatus
+### para entender POR QUE una reserva termino en su estado final
+### ============================================================
+
+### 9.1 Crear reserva que sera rechazada por pais no soportado
+### Luego consultar por ID para ver la decision de rechazo
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "trazabilidad@example.com",
+  "tripCountry": "XX",
+  "amount": 300,
+  "currency": "USD",
+  "tripStartDate": "2026-06-20T10:00:00Z"
+}
+
+### 9.2 Crear reserva normal y esperar procesamiento de riesgo
+### Luego consultar por ID para ver la decision del proveedor
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "trazabilidad2@example.com",
+  "tripCountry": "MX",
+  "amount": 1000,
+  "currency": "USD",
+  "tripStartDate": "2026-06-20T10:00:00Z"
+}
+
+### ============================================================
+### 10. EDGE CASES
+### ============================================================
+
+### 10.1 Body vacio
+### Esperado: 400 o 500 (depende del binding)
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{}
+
+### 10.2 Campos null
+### Esperado: 400 Bad Request
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": null,
+  "tripCountry": null,
+  "amount": 0,
+  "currency": null,
+  "tripStartDate": "2026-05-15T10:00:00Z"
+}
+
+### 10.3 Monto con muchos decimales
+### Esperado: 202 (decimal lo maneja)
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "decimals@example.com",
+  "tripCountry": "MX",
+  "amount": 99.999999,
+  "currency": "USD",
+  "tripStartDate": "2026-06-15T10:00:00Z"
+}
+
+### 10.4 Pais en minusculas (case insensitive check)
+### Esperado: 202 con PendingRiskCheck (el servicio compara con OrdinalIgnoreCase)
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "customerEmail": "case@example.com",
+  "tripCountry": "mx",
+  "amount": 500,
+  "currency": "usd",
+  "tripStartDate": "2026-06-15T10:00:00Z"
+}

@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+**/node_modules/
+**/*.user
+**/*.db
+**/*.db-shm
+**/*.db-wal
+.git/
+.gitignore
+*.md
+*.pdf
+TripNow.UnitTests/
+TripNow.IntegrationTests/

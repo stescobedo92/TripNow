@@ -1,0 +1,19 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+
+## IDE
+.vs/
+.idea/
+*.swp
+
+## SQLite leftovers
+*.db
+*.db-shm
+*.db-wal

@@ -14,8 +14,7 @@ public static class DependencyInjection
     {
         services.Configure<RiskProviderOptions>(configuration.GetSection(RiskProviderOptions.SectionName));
 
-        var connectionString = configuration.GetConnectionString("TripNowDb")
-            ?? throw new InvalidOperationException("Connection string 'TripNowDb' is required.");
+        var connectionString = BuildConnectionString(configuration);
 
         services.AddDbContext<TripNowDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IReservationRepository, ReservationRepository>();
@@ -29,5 +28,20 @@ public static class DependencyInjection
         });
 
         return services;
+    }
+
+    private static string BuildConnectionString(IConfiguration configuration)
+    {
+        // Railway (and other cloud providers) set DATABASE_URL as postgresql://user:pass@host:port/db
+        var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+        if (!string.IsNullOrEmpty(databaseUrl))
+        {
+            var uri = new Uri(databaseUrl);
+            var userInfo = uri.UserInfo.Split(':');
+            return $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
+        }
+
+        return configuration.GetConnectionString("TripNowDb")
+            ?? throw new InvalidOperationException("Connection string 'TripNowDb' is required. Set DATABASE_URL or ConnectionStrings__TripNowDb.");
     }
 }
