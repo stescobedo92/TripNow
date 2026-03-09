@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="TripNow.Api/TripNow.Api.csproj" />
+  <Project Path="TripNow.Application/TripNow.Application.csproj" />
+  <Project Path="TripNow.Domain/TripNow.Domain.csproj" />
+  <Project Path="TripNow.Infrastructure/TripNow.Infrastructure.csproj" />
+  <Project Path="TripNow.IntegrationTests/TripNow.IntegrationTests.csproj" />
+  <Project Path="TripNow.UnitTests/TripNow.UnitTests.csproj" />
+</Solution>
