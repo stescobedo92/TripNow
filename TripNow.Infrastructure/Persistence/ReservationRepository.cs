@@ -6,8 +6,11 @@ namespace TripNow.Infrastructure.Persistence;
 
 public sealed class ReservationRepository(TripNowDbContext dbContext) : IReservationRepository
 {
-    public async Task AddAsync(Reservation reservation, CancellationToken ct)
-        => await dbContext.Reservations.AddAsync(reservation, ct);
+    public Task AddAsync(Reservation reservation, CancellationToken ct)
+    {
+        dbContext.Reservations.Add(reservation);
+        return Task.CompletedTask;
+    }
 
     public async Task<Reservation?> GetByIdAsync(Guid reservationId, CancellationToken ct)
         => await dbContext.Reservations
